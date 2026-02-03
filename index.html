@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>用語集</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand">
+        <div class="brand-title">用語集</div>
+        <div class="brand-subtitle" id="metaInfo">読み込み中…</div>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="search-wrap">
+        <input id="q" class="search-input" type="text" placeholder="用語 / 読み / 定義 / タグ / 出典 で検索（スペース区切りAND）" autocomplete="off" />
+        <button id="clearQ" class="icon-btn" title="検索をクリア">×</button>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="controls">
+        <select id="category" class="select">
+          <option value="">分類：すべて</option>
+        </select>
+        <select id="tag" class="select">
+          <option value="">タグ：すべて</option>
+        </select>
+        <select id="status" class="select">
+          <option value="">状態：すべて</option>
+          <option value="draft">draft</option>
+          <option value="verified">verified</option>
+          <option value="deprecated">deprecated</option>
+        </select>
+        <select id="sort" class="select">
+          <option value="relevance">並び：関連度</option>
+          <option value="updated_desc">更新日：新しい順</option>
+          <option value="term_asc">用語：昇順</option>
+        </select>
+
+        <label class="check">
+          <input id="onlyFav" type="checkbox" />
+          <span>★のみ</span>
+        </label>
+
+        <button id="openHelp" class="btn">操作</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <aside class="pane list-pane">
+      <div class="pane-header">
+        <div class="pane-title">検索結果</div>
+        <div class="pane-actions">
+          <button id="showRecent" class="btn-secondary" title="最近見た用語">履歴</button>
+        </div>
+      </div>
+      <div id="list" class="list"></div>
+      <div id="listFooter" class="list-footer"></div>
+    </aside>
+
+    <section class="pane detail-pane">
+      <div class="pane-header">
+        <div class="pane-title">詳細</div>
+        <div class="pane-actions">
+          <button id="toggleFav" class="btn-secondary" disabled>★</button>
+          <button id="copyLink" class="btn-secondary" disabled>リンクコピー</button>
+        </div>
+      </div>
+
+      <div id="detail" class="detail empty">
+        <div class="empty-title">左の一覧から用語を選択</div>
+        <div class="empty-subtitle">/ キーで検索にフォーカス、↑↓で選択、Enterで決定</div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="helpDialog" class="dialog">
+    <div class="dialog-inner">
+      <div class="dialog-title">操作</div>
+      <div class="dialog-body">
+        <ul class="help-list">
+          <li><kbd>/</kbd>：検索ボックスにフォーカス</li>
+          <li><kbd>Esc</kbd>：検索クリア / ダイアログ閉じる</li>
+          <li><kbd>↑</kbd><kbd>↓</kbd>：一覧選択移動</li>
+          <li><kbd>Enter</kbd>：選択中の用語を開く</li>
+        </ul>
+        <div class="help-note">
+          ※ data/terms.json を同梱して動かします。ローカルで動かす場合は簡易サーバ推奨（下記）。
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button id="closeHelp" class="btn">閉じる</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

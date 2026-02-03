@@ -1,0 +1,7 @@
+{
+  "input": "terms.xlsx",
+  "sheet": "Terms",
+  "output": "data\\terms.json",
+  "count": 6,
+  "warnings": []
+}
