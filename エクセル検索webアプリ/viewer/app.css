@@ -164,6 +164,7 @@ table {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
+  table-layout: fixed;
 }
 thead th {
   position: sticky;

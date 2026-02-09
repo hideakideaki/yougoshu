@@ -85,6 +85,11 @@ function renderTable(sheetJson, q) {
   const rows = sheetJson.rows || [];
   const wraps = sheetJson.wraps || [];
 
+  const colgroup = document.createElement("colgroup");
+  columns.forEach(() => {
+    colgroup.appendChild(document.createElement("col"));
+  });
+
   const thead = document.createElement("thead");
   const trh = document.createElement("tr");
   columns.forEach((c) => {
@@ -113,12 +118,29 @@ function renderTable(sheetJson, q) {
   }
 
   tbl.innerHTML = "";
+  tbl.appendChild(colgroup);
   tbl.appendChild(thead);
   tbl.appendChild(tbody);
 
   requestAnimationFrame(() => {
+    applyHeaderColumnWidths();
     syncHorizontalScroll();
-    requestAnimationFrame(syncHorizontalScroll);
+    requestAnimationFrame(() => {
+      applyHeaderColumnWidths();
+      syncHorizontalScroll();
+    });
+  });
+}
+
+function applyHeaderColumnWidths() {
+  const tbl = el("tbl");
+  if (!tbl) return;
+  const cols = tbl.querySelectorAll("colgroup col");
+  const ths = tbl.querySelectorAll("thead th");
+  if (!cols.length || cols.length !== ths.length) return;
+  ths.forEach((th, i) => {
+    const w = Math.ceil(th.scrollWidth + 2);
+    cols[i].style.width = `${w}px`;
   });
 }
 
@@ -162,6 +184,7 @@ function setupHorizontalScrollSync() {
   wrap.addEventListener("scroll", syncFromWrap, { passive: true });
   hScroll.addEventListener("scroll", syncFromBar, { passive: true });
   window.addEventListener("resize", syncHorizontalScroll);
+  window.addEventListener("resize", applyHeaderColumnWidths);
   if ("ResizeObserver" in window) {
     const ro = new ResizeObserver(() => syncHorizontalScroll());
     ro.observe(wrap);
