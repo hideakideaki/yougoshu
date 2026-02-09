@@ -112,6 +112,60 @@ function renderTable(sheetJson, q) {
   tbl.innerHTML = "";
   tbl.appendChild(thead);
   tbl.appendChild(tbody);
+
+  requestAnimationFrame(() => {
+    syncHorizontalScroll();
+    requestAnimationFrame(syncHorizontalScroll);
+  });
+}
+
+function syncHorizontalScroll() {
+  const wrap = el("tableWrap");
+  const hScroll = el("hScroll");
+  const inner = el("hScrollInner");
+  if (!wrap || !hScroll || !inner) return;
+  const table = el("tbl");
+  const contentWidth = Math.max(
+    wrap.scrollWidth,
+    wrap.clientWidth,
+    table ? table.scrollWidth : 0,
+    table ? table.offsetWidth : 0
+  );
+  const scrollWidth = Math.max(contentWidth, wrap.clientWidth + 1);
+  inner.style.width = `${scrollWidth}px`;
+  hScroll.style.display = contentWidth > wrap.clientWidth + 1 ? "block" : "none";
+  hScroll.scrollLeft = wrap.scrollLeft;
+}
+
+function setupHorizontalScrollSync() {
+  const wrap = el("tableWrap");
+  const hScroll = el("hScroll");
+  if (!wrap || !hScroll) return;
+
+  let syncing = false;
+  const syncFromWrap = () => {
+    if (syncing) return;
+    syncing = true;
+    hScroll.scrollLeft = wrap.scrollLeft;
+    syncing = false;
+  };
+  const syncFromBar = () => {
+    if (syncing) return;
+    syncing = true;
+    wrap.scrollLeft = hScroll.scrollLeft;
+    syncing = false;
+  };
+
+  wrap.addEventListener("scroll", syncFromWrap, { passive: true });
+  hScroll.addEventListener("scroll", syncFromBar, { passive: true });
+  window.addEventListener("resize", syncHorizontalScroll);
+  if ("ResizeObserver" in window) {
+    const ro = new ResizeObserver(() => syncHorizontalScroll());
+    ro.observe(wrap);
+    const table = el("tbl");
+    if (table) ro.observe(table);
+  }
+  syncHorizontalScroll();
 }
 
 function clearRowFocus() {
@@ -141,6 +195,9 @@ async function openSheetByIndex(i, opts = {}) {
   const q = el("q").value.trim();
   renderTable(sheetJson, q);
   clearRowFocus();
+  syncHorizontalScroll();
+  setTimeout(syncHorizontalScroll, 0);
+  setTimeout(syncHorizontalScroll, 60);
 
   if (!opts.preserveResults) {
     el("results").innerHTML = "";
@@ -303,6 +360,7 @@ async function main() {
   try {
     setStatus("index.json 読み込み中...");
     await loadIndex();
+    setupHorizontalScrollSync();
     setupEvents();
 
     if (state.sheets.length) {

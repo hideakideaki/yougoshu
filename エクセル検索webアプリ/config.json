@@ -23,6 +23,6 @@
 
   "sheets": {
     "Sheet1": { "header": { "row_start": 3, "row_end": 3 }, "data_start_row": 4 },
-    "Sheet2": { "header": { "row_start": 5, "row_end": 6, "join_with": " " } }
+    "Sheet2": { "header": { "row_start": 5, "row_end": 6, "join_with": "\n" } }
   }
 }
