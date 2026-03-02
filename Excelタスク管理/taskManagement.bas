@@ -7,6 +7,7 @@ Private Const SHEET_INPUT As String = "Input"
 Private Const SHEET_MASTER As String = "Master"
 Private Const SHEET_GANTT As String = "Gantt"
 Private Const SHEET_SETTINGS As String = "Settings"
+Private Const SHEET_LOG As String = "Log"
 
 Private Const SETTING_KEY_ACTUAL_STYLE As String = "ActualStyle"
 Private Const ACTUAL_STYLE_SQUARE As String = "SQUARE"
@@ -64,6 +65,7 @@ Public Sub Build_All()
     nextId = 1
     
     BuildMasterFromInput nodes, children, nextId
+    SyncLogOrderWithInput
     AggregateParentDates nodes, children
     WriteMasterSheet nodes
     BuildGanttSheet nodes, children
@@ -82,6 +84,7 @@ Private Sub EnsureSheets()
     EnsureSheet wb, SHEET_MASTER
     EnsureSheet wb, SHEET_GANTT
     EnsureSheet wb, SHEET_SETTINGS
+    EnsureSheet wb, SHEET_LOG
     EnsureSettingsSheet
 End Sub
 
@@ -101,19 +104,23 @@ End Sub
 '========================
 Private Sub BuildMasterFromInput(ByVal nodes As Object, ByVal children As Object, ByRef nextId As Long)
     Dim ws As Worksheet: Set ws = ThisWorkbook.Worksheets(SHEET_INPUT)
-    Dim lastRow As Long: lastRow = ws.Cells(ws.Rows.Count, COL_L1).End(xlUp).Row
+    Dim colMap As Object
+    Set colMap = ResolveInputColumns(ws)
+    
+    Dim lastRow As Long
+    lastRow = GetInputLastRow(ws, colMap)
     
     Dim r As Long
     For r = 2 To lastRow
         ' 完全空行スキップ
-        If IsRowEmpty(ws, r) Then GoTo ContinueRow
+        If IsRowEmpty(ws, r, colMap) Then GoTo ContinueRow
         
         ' 階層値（ここではMAX_LEVEL=4前提でA〜D）
         Dim lv(1 To 10) As String ' MAX_LEVELが5以上でも余裕
-        lv(1) = Trim(CStr(ws.Cells(r, COL_L1).Value))
-        lv(2) = Trim(CStr(ws.Cells(r, COL_L2).Value))
-        lv(3) = Trim(CStr(ws.Cells(r, COL_L3).Value))
-        lv(4) = Trim(CStr(ws.Cells(r, COL_L4).Value))
+        lv(1) = Trim(CStr(ws.Cells(r, CLng(colMap("L1"))).Value))
+        lv(2) = Trim(CStr(ws.Cells(r, CLng(colMap("L2"))).Value))
+        lv(3) = Trim(CStr(ws.Cells(r, CLng(colMap("L3"))).Value))
+        lv(4) = Trim(CStr(ws.Cells(r, CLng(colMap("L4"))).Value))
         
         Dim i As Long
         For i = 1 To MAX_LEVEL
@@ -126,8 +133,8 @@ Private Sub BuildMasterFromInput(ByVal nodes As Object, ByVal children As Object
         
         ' 日付（Planは任意、Actualは任意）
         Dim ps As Variant, pe As Variant
-        ps = ws.Cells(r, COL_PLAN_START).Value
-        pe = ws.Cells(r, COL_PLAN_END).Value
+        ps = ws.Cells(r, CLng(colMap("PlanStart"))).Value
+        pe = ws.Cells(r, CLng(colMap("PlanEnd"))).Value
         Dim hasPlanStart As Boolean: hasPlanStart = IsDate(ps)
         Dim hasPlanEnd As Boolean: hasPlanEnd = IsDate(pe)
         If hasPlanStart And hasPlanEnd Then
@@ -137,8 +144,8 @@ Private Sub BuildMasterFromInput(ByVal nodes As Object, ByVal children As Object
         End If
         
         Dim asv As Variant, aev As Variant
-        asv = ws.Cells(r, COL_ACT_START).Value
-        aev = ws.Cells(r, COL_ACT_END).Value
+        asv = ws.Cells(r, CLng(colMap("ActualStart"))).Value
+        aev = ws.Cells(r, CLng(colMap("ActualEnd"))).Value
         
         Dim hasActStart As Boolean: hasActStart = IsDate(asv)
         Dim hasActEnd As Boolean: hasActEnd = IsDate(aev)
@@ -149,9 +156,9 @@ Private Sub BuildMasterFromInput(ByVal nodes As Object, ByVal children As Object
         End If
         
         Dim prog As Variant, owner As String, status As String
-        prog = ws.Cells(r, COL_PROG).Value
-        owner = Trim(CStr(ws.Cells(r, COL_OWNER).Value))
-        status = Trim(CStr(ws.Cells(r, COL_STATUS).Value))
+        prog = ws.Cells(r, CLng(colMap("Progress"))).Value
+        owner = Trim(CStr(ws.Cells(r, CLng(colMap("Owner"))).Value))
+        status = Trim(CStr(ws.Cells(r, CLng(colMap("Status"))).Value))
         
         ' path生成（A/B/C/D… を "/" で連結）
         Dim path(1 To 10) As String
@@ -188,15 +195,114 @@ ContinueRow:
     Next r
 End Sub
 
-Private Function IsRowEmpty(ByVal ws As Worksheet, ByVal r As Long) As Boolean
-    Dim c As Long
-    For c = COL_L1 To COL_STATUS
-        If Trim(CStr(ws.Cells(r, c).Value)) <> "" Then
+Private Function IsRowEmpty(ByVal ws As Worksheet, ByVal r As Long, ByVal colMap As Object) As Boolean
+    Dim k As Variant
+    For Each k In colMap.Keys
+        If Trim(CStr(ws.Cells(r, CLng(colMap(k))).Value)) <> "" Then
             IsRowEmpty = False
             Exit Function
         End If
-    Next c
+    Next k
     IsRowEmpty = True
+End Function
+
+Private Function ResolveInputColumns(ByVal ws As Worksheet) As Object
+    Dim headerIndex As Object
+    Set headerIndex = BuildHeaderIndex(ws)
+    
+    Dim m As Object
+    Set m = CreateObject("Scripting.Dictionary")
+    
+    Dim i As Long
+    For i = 1 To MAX_LEVEL
+        m.Add "L" & CStr(i), RequireHeaderColumn(headerIndex, Array("L" & CStr(i), "Level" & CStr(i), "階層" & CStr(i)), "L" & CStr(i))
+    Next i
+    
+    m.Add "PlanStart", RequireHeaderColumn(headerIndex, Array("PlanStart", "Plan Start", "予定開始"), "PlanStart")
+    m.Add "PlanEnd", RequireHeaderColumn(headerIndex, Array("PlanEnd", "Plan End", "予定終了"), "PlanEnd")
+    m.Add "ActualStart", RequireHeaderColumn(headerIndex, Array("ActualStart", "Actual Start", "実績開始"), "ActualStart")
+    m.Add "ActualEnd", RequireHeaderColumn(headerIndex, Array("ActualEnd", "Actual End", "実績終了"), "ActualEnd")
+    m.Add "Progress", RequireHeaderColumn(headerIndex, Array("Progress", "進捗"), "Progress")
+    m.Add "Owner", RequireHeaderColumn(headerIndex, Array("Owner", "担当", "担当者"), "Owner")
+    m.Add "Status", RequireHeaderColumn(headerIndex, Array("Status", "状態"), "Status")
+    
+    Dim taskIdCol As Long
+    taskIdCol = FindHeaderColumn(headerIndex, Array("TaskID", "Task Id", "ID", "タスクID"))
+    If taskIdCol > 0 Then m.Add "TaskID", taskIdCol
+    
+    Set ResolveInputColumns = m
+End Function
+
+Private Function BuildHeaderIndex(ByVal ws As Worksheet) As Object
+    Dim idx As Object
+    Set idx = CreateObject("Scripting.Dictionary")
+    
+    Dim lastCol As Long
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+    
+    Dim c As Long
+    For c = 1 To lastCol
+        Dim raw As String
+        raw = CStr(ws.Cells(1, c).Value)
+        If Trim$(raw) <> "" Then
+            Dim key As String
+            key = NormalizeHeader(raw)
+            If Not idx.Exists(key) Then idx.Add key, c
+        End If
+    Next c
+    
+    Set BuildHeaderIndex = idx
+End Function
+
+Private Function RequireHeaderColumn(ByVal headerIndex As Object, ByVal aliases As Variant, ByVal requiredName As String) As Long
+    Dim i As Long
+    For i = LBound(aliases) To UBound(aliases)
+        Dim k As String
+        k = NormalizeHeader(CStr(aliases(i)))
+        If headerIndex.Exists(k) Then
+            RequireHeaderColumn = CLng(headerIndex(k))
+            Exit Function
+        End If
+    Next i
+    
+    Err.Raise vbObjectError + 110, , "Inputのヘッダ '" & requiredName & "' が見つかりません。1行目を確認してください。"
+End Function
+
+Private Function FindHeaderColumn(ByVal headerIndex As Object, ByVal aliases As Variant) As Long
+    Dim i As Long
+    For i = LBound(aliases) To UBound(aliases)
+        Dim k As String
+        k = NormalizeHeader(CStr(aliases(i)))
+        If headerIndex.Exists(k) Then
+            FindHeaderColumn = CLng(headerIndex(k))
+            Exit Function
+        End If
+    Next i
+    FindHeaderColumn = 0
+End Function
+
+Private Function NormalizeHeader(ByVal s As String) As String
+    s = LCase$(Trim$(s))
+    s = Replace(s, " ", "")
+    s = Replace(s, "　", "")
+    s = Replace(s, "_", "")
+    NormalizeHeader = s
+End Function
+
+Private Function GetInputLastRow(ByVal ws As Worksheet, ByVal colMap As Object) As Long
+    Dim maxRow As Long
+    maxRow = 1
+    
+    Dim k As Variant
+    For Each k In colMap.Keys
+        Dim c As Long
+        c = CLng(colMap(k))
+        Dim r As Long
+        r = ws.Cells(ws.Rows.Count, c).End(xlUp).Row
+        If r > maxRow Then maxRow = r
+    Next k
+    
+    GetInputLastRow = maxRow
 End Function
 
 Private Sub EnsureNode(ByVal nodes As Object, ByVal children As Object, ByVal path As String, ByVal parentPath As String, _
