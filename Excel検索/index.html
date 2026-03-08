@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Excel 検索ツール（単一ファイル）</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Excel 検索ツール（単一エクセル / ヘッダ範囲指定）</h1>
+  <div class="sub">列ヘッダ行範囲・行ヘッダ列範囲・データ開始行/列を指定して、データ領域を検索します。</div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="row">
+      <label>
+        Excelファイル（.xlsx）
+        <input id="file" type="file" accept=".xlsx,.xlsm,.xlsb,.xls" multiple />
+      </label>
+
+      <label>
+        シート
+        <select id="sheetSelect" disabled></select>
+      </label>
+
+      <div class="status" id="fileStatus">未読み込み</div>
+    </div>
+
+    <div class="hint">
+      ※ブラウザ内で完結します（サーバ不要）。<br/>
+      ※巨大ファイルは端末メモリに依存します（まずは小さめで確認してください）。
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <details class="card" style="padding:8px; flex:1;" open>
+        <summary class="row details-summary" style="justify-content:space-between; cursor:pointer;">
+          <span class="pill">Loaded files</span>
+        </summary>
+        <div class="details-body">
+          <div class="hint file-list" id="loadedFilesList">None</div>
+          <div class="hint" id="memoryEstimate">Memory estimate: -</div>
+        </div>
+      </details>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <label>Delete table
+        <select id="deleteTableSelect" disabled></select>
+      </label>
+      <button id="deleteTableBtn" disabled>Delete table</button>
+      <label>Delete file
+        <select id="deleteFileSelect" disabled></select>
+      </label>
+      <button id="deleteFileBtn" disabled>Delete file</button>
+    </div></div>
+
+  <div class="card">
+    <div class="grid2">
+      <div>
+        <div class="row">
+          <label>列ヘッダ（行）開始（1始まり）
+            <input id="colHeaderRowStart" type="number" min="1" value="1">
+          </label>
+          <label>列ヘッダ行数
+            <input id="colHeaderRowCount" type="number" min="1" value="1">
+          </label>
+          <label>データ開始行（1始まり）
+            <input id="dataRowStart" type="number" min="1" value="2">
+          </label>
+        </div>
+        <div class="hint">
+          例：ヘッダが1〜3行、データが4行目からなら「開始=1、行数=3、データ開始行=4」。
+        </div>
+      </div>
+
+      <div>
+        <div class="row">
+          <label>行ヘッダ（列）開始（1始まり）
+            <input id="rowHeaderColStart" type="number" min="1" value="1">
+          </label>
+          <label>行ヘッダ列数
+            <input id="rowHeaderColCount" type="number" min="1" value="1">
+          </label>
+          <label>データ開始列（1始まり）
+            <input id="dataColStart" type="number" min="1" value="2">
+          </label>
+        </div>
+        <div class="hint" id="rowHeaderColLetters">行ヘッダ列記号: -</div>
+        <div class="hint" id="dataColLetters">データ開始列記号: -</div>
+        <div class="hint">
+          例：左に「品番」「品名」などが2列あるなら「行ヘッダ開始=1、列数=2、データ開始列=3」。
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <label style="flex-direction:row; gap:8px; align-items:center;">
+        <input id="autoFillDataStart" type="checkbox" checked>
+        データ開始行/列を自動更新
+      </label>
+      <button id="applySettings" disabled>設定を適用（プレビュー更新）</button>
+      <span class="status" id="settingsStatus">ファイル読み込み後に有効化されます</span>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button id="exportSettingsBtn">設定をエクスポート</button>
+      <button id="importSettingsBtn">設定をインポート</button>
+      <input id="importSettingsFile" type="file" accept=".json,application/json" hidden>
+    </div>
+    <div class="card" style="padding:8px; margin-top:10px;">
+      <div class="row" style="justify-content:space-between;">
+        <span class="pill">現在のテーブル設定</span>
+      </div>
+      <div class="hint" id="currentSettings">未作成</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>検索文字
+        <input id="query" type="text" placeholder="例：ABC / 123 / 東京 など">
+      </label>
+
+      <label>一致方式
+        <select id="mode">
+          <option value="contains" selected>含む</option>
+          <option value="equals">完全一致</option>
+          <option value="regex">正規表現</option>
+        </select>
+      </label>
+
+      <label>
+        <span>大文字小文字</span>
+        <select id="case">
+          <option value="insensitive" selected>区別しない</option>
+          <option value="sensitive">区別する</option>
+        </select>
+      </label>
+
+      <button id="runSearch" disabled>検索</button>
+      <span class="status" id="searchStatus">未実行</span>
+    </div>
+
+    <div class="hint">
+      検索対象は「データ開始行/列 以降の領域」です。行ヘッダ/列ヘッダは結果表示のラベルとして使います。<br/>
+      正規表現モード例： <span class="mono">^A\d{3}$</span>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <label>行ヘッダ条件（カンマ区切り可）
+        <input id="rowHeaderQuery" type="text" placeholder="例: 製品A, 製品B">
+      </label>
+      <label>除外値
+        <input id="rowHeaderExcludeValue" type="text" value="-" placeholder="例: -">
+      </label>
+      <button id="runRowHeaderScan" disabled>行ヘッダ列抽出</button>
+      <span class="status" id="rowHeaderStatus">未実行</span>
+    </div>
+    <div class="hint">
+      行ヘッダは上の検索条件（含む/完全一致/正規表現、大小区別）で判定し、該当行のうち「除外値」ではない列を抽出します。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between; align-items:center;">
+      <div>
+        <span class="pill" id="metaPill">テーブル未作成</span>
+      </div>
+      <button id="downloadResults" disabled>結果をCSVで保存</button>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <label>結果フィルタ
+        <input id="resultFilter" type="text" placeholder="例: 商品A / A001 / 東京">
+      </label>
+      <label>対象列
+        <select id="resultFilterColumn">
+          <option value="all" selected>すべて</option>
+          <option value="sheet">シート</option>
+          <option value="row">行</option>
+          <option value="col">列</option>
+          <option value="rowHeaderText">行ヘッダ</option>
+          <option value="colHeaderText">列ヘッダ</option>
+          <option value="value">値</option>
+        </select>
+      </label>
+      <label>並べ替え
+        <select id="resultGroupBy">
+          <option value="none" selected>なし</option>
+          <option value="rowHeaderText">行ヘッダ</option>
+          <option value="colHeaderText">列ヘッダ</option>
+        </select>
+      </label>
+      <span class="status" id="resultFilterStatus"></span>
+    </div>
+    <div class="grid2" style="margin-top:10px;">
+      <details class="card" style="padding:8px;" open>
+        <summary class="row details-summary" style="justify-content:space-between; cursor:pointer;">
+          <span class="pill">列ヘッダ一覧</span>
+        </summary>
+        <div class="details-body">
+          <div class="hint header-list" id="colHeaderList">未作成</div>
+        </div>
+      </details>
+      <details class="card" style="padding:8px;" open>
+        <summary class="row details-summary" style="justify-content:space-between; cursor:pointer;">
+          <span class="pill">行ヘッダ一覧</span>
+        </summary>
+        <div class="details-body">
+          <div class="hint header-list" id="rowHeaderList">未作成</div>
+        </div>
+      </details>
+    </div>
+    <div style="overflow:auto; max-height:55vh; margin-top:10px;">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>シート</th>
+            <th>行</th>
+            <th>列</th>
+            <th>行ヘッダ（指定列範囲の連結）</th>
+            <th>列ヘッダ（指定行範囲の連結）</th>
+            <th>値</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr><td colspan="7" class="status">ここに検索結果が表示されます</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- SheetJS (XLSX) -->
+<script src="xlsx.full.min.js"></script>
+
+<script src="app.js"></script>
+</body>
+</html>
