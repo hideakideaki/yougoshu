@@ -848,6 +848,29 @@ Private Sub AppendCellText(ByVal targetCell As Range, ByVal addText As String)
     End If
 End Sub
 
+Private Sub ShadeDailyWeekendColumns(ByVal wsG As Worksheet, ByVal startDate As Date, ByVal startCol As Long, ByVal lastCol As Long, ByVal lastDataRow As Long)
+    Const WEEKEND_COLOR As Long = 15132390
+
+    Dim c As Long
+    Dim targetDate As Date
+    Dim targetRange As Range
+    Dim cell As Range
+
+    If lastDataRow < 2 Or lastCol < startCol Then Exit Sub
+
+    For c = startCol To lastCol
+        targetDate = DateAdd("d", c - startCol, startDate)
+        If Weekday(targetDate, vbMonday) >= 6 Then
+            Set targetRange = wsG.Range(wsG.Cells(2, c), wsG.Cells(lastDataRow, c))
+            For Each cell In targetRange.Cells
+                If cell.Interior.Pattern = xlNone Or cell.Interior.ColorIndex = xlColorIndexNone Then
+                    cell.Interior.Color = WEEKEND_COLOR
+                End If
+            Next
+        End If
+    Next
+End Sub
+
 Sub DrawGanttDailyCompressed()
     Dim COLOR_MONTH As Long
     Dim COLOR_DATE As Long
@@ -1032,6 +1055,7 @@ NextDailyCompactRow:
     Dim lastDataRow As Long
     lastDataRow = currentRow - 1
     If lastDataRow >= 2 Then
+        ShadeDailyWeekendColumns wsG, startDate, startCol, lastCol, lastDataRow
         wsG.Range(wsG.Cells(2, 1), wsG.Cells(lastDataRow, startCol - 1)).AutoFilter
     End If
 End Sub
@@ -1203,6 +1227,7 @@ NextDailyRow:
     Dim lastDataRow As Long
     lastDataRow = ganttRow - 1
     If lastDataRow >= 2 Then
+        ShadeDailyWeekendColumns wsG, startDate, startCol, lastCol, lastDataRow
         wsG.Range(wsG.Cells(2, 1), wsG.Cells(lastDataRow, startCol - 1)).AutoFilter
     End If
 End Sub
